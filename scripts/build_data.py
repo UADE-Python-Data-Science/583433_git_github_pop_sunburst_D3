@@ -15,7 +15,7 @@ Uso (desde la raíz del repo):
 Salida: data/poblacion.json
 """
 
-import argparse
+import os
 import json
 import time
 from datetime import date
@@ -124,12 +124,16 @@ def build_tree(pop, paises):
     anio = int(df["TIME_PERIOD"].max())
     df_anio = df[df["TIME_PERIOD"] == anio]
 
+    # Resta de conjuntos - retorna los paises que no reportaron datos ese año
     faltantes = sorted(set(paises["pais"]) - set(df_anio["pais"]))
     if faltantes:
         print(f"  Aviso: {len(faltantes)} países sin dato para {anio} "
               f"(quedan fuera): {', '.join(faltantes)}")
 
+    # Armar la jerarquía región → países
     regiones = []
+    # hijos usa lista por comprension 
+    # Cada fila se convierte en un diccionario con las claves que espera D3: name, code y value
     for (region_id, region), grupo in df_anio.groupby(["region_id", "region"]):
         hijos = [
             {"name": r.pais, "code": r.iso3, "value": int(r.OBS_VALUE)}
@@ -156,27 +160,40 @@ def build_tree(pop, paises):
 
 
 # ---------------------------------------------------------------------------
+# Configuración (al principio del archivo)
+IDIOMA = "es"                  # idioma de los nombres: "es", "en", "fr"...
+CARPETA_SALIDA = "data"        # carpeta donde se guarda el resultado
+ARCHIVO_SALIDA = "poblacion.json"
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--out", default="data/poblacion.json", help="archivo de salida")
-    parser.add_argument("--lang", default="es", help="idioma de los nombres (es, en, fr...)")
-    args = parser.parse_args()
-
+    # Paso 1: descargar los valores de población
     print("1/3 Descargando población (Data360)...")
-    pop = fetch_population()
+    poblacion = fetch_population()
 
+    # Paso 2: descargar a qué región pertenece cada país
     print("2/3 Descargando clasificación de países (API v2)...")
-    paises = fetch_countries(args.lang)
+    paises = fetch_countries(IDIOMA)
 
+    # Paso 3: unir todo y armar el árbol Mundo -> Región -> País
     print("3/3 Armando jerarquía Mundo -> Región -> País...")
-    arbol, n = build_tree(pop, paises)
+    arbol, cantidad_paises = build_tree(poblacion, paises)
 
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(arbol, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"\nListo: {out} | año {arbol['year']} | "
-          f"{len(arbol['children'])} regiones | {n} países")
+    # Guardar el árbol en un archivo JSON
+    os.makedirs(CARPETA_SALIDA, exist_ok=True)   # crea la carpeta si no existe
+    ruta = os.path.join(CARPETA_SALIDA, ARCHIVO_SALIDA)
+
+    with open(ruta, "w", encoding="utf-8") as archivo:
+        json.dump(arbol, archivo, ensure_ascii=False, indent=1)
+
+    # Resumen final
+    cantidad_regiones = len(arbol["children"])
+    print()
+    print("Listo!")
+    print("Archivo generado:", ruta)
+    print("Año:", arbol["year"])
+    print("Regiones:", cantidad_regiones)
+    print("Países:", cantidad_paises)
 
 
 if __name__ == "__main__":

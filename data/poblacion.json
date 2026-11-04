@@ -2,7 +2,7 @@
  "name": "Mundo",
  "year": 2025,
  "source": "World Bank - WDI, SP.POP.TOTL (Data360 API)",
- "generated": "2026-11-03",
+ "generated": "2026-11-04",
  "children": [
   {
    "name": "Asia oriental y el Pacífico",
